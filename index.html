@@ -10,7 +10,6 @@
 <body>
     <div class="dashboard">
 
-        <!-- ═══════════════ SIDEBAR ═══════════════ -->
         <aside class="sidebar">
             <div class="brand">
                 <div class="brand-logo">
@@ -72,36 +71,48 @@
                     <span class="nav-icon">📈</span> Panel de Estadísticas
                 </button>
             </nav>
-
-            <div class="sidebar-footer">
-                SST Manager · v2.0 · 2025
-            </div>
         </aside>
 
-        <!-- ═══════════════ CONTENIDO PRINCIPAL ═══════════════ -->
         <main class="content">
 
-            <!-- ─── ALERTAS DEL SISTEMA ─── -->
             <section id="mod-alertas" class="module">
                 <div class="header-module">
                     <div class="header-module-text">
-                        <h1>Alertas del Sistema</h1>
-                        <p>Notificaciones sobre EMOs por vencer, equipos pendientes y actos inseguros.</p>
+                        <h1>Panel de Alertas</h1>
+                        <p>Notificaciones pendientes agrupadas por módulo de seguridad.</p>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div id="alertasContainer" class="alertas-section hidden">
-                        <h3>⚠️ Alertas Activas</h3>
-                        <div id="alertasList" class="alertas-list"></div>
+                <div id="noAlertsMsg" class="card hidden" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    <h2>✅ Todo en orden</h2>
+                    <p style="margin-top: 8px;">No hay alertas pendientes en este momento para ningún módulo.</p>
+                </div>
+
+                <div id="alertasContainer">
+                    
+                    <div class="alertas-section hidden" id="sec-alertas-emo" style="margin-bottom: 20px; border-left-color: #ef4444;">
+                        <h3 style="color: #b91c1c;">🩺 Alertas de EMO (Exámenes Médicos)</h3>
+                        <div id="list-alertas-emo" class="alertas-list"></div>
                     </div>
-                    <div id="noAlertsMsg" class="hidden" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                        ✅ No hay alertas pendientes en este momento. ¡Todo en orden!
+
+                    <div class="alertas-section hidden" id="sec-alertas-epp" style="margin-bottom: 20px; border-left-color: #3b82f6;">
+                        <h3 style="color: #1d4ed8;">🧤 Alertas de Equipos de Protección</h3>
+                        <div id="list-alertas-epp" class="alertas-list"></div>
                     </div>
+
+                    <div class="alertas-section hidden" id="sec-alertas-vacunas" style="margin-bottom: 20px; border-left-color: #10b981;">
+                        <h3 style="color: #047857;">💉 Alertas de Vacunación</h3>
+                        <div id="list-alertas-vacunas" class="alertas-list"></div>
+                    </div>
+
+                    <div class="alertas-section hidden" id="sec-alertas-actos" style="margin-bottom: 20px; border-left-color: #f59e0b;">
+                        <h3 style="color: #b45309;">⚠️ Alertas de Actos Inseguros</h3>
+                        <div id="list-alertas-actos" class="alertas-list"></div>
+                    </div>
+
                 </div>
             </section>
 
-            <!-- ─── BUSCADOR PRINCIPAL ─── -->
             <section id="mod-search" class="module active">
                 <div class="header-module">
                     <div class="header-module-text">
@@ -118,7 +129,6 @@
                         </button>
                     </div>
 
-                    <!-- Resultados de búsqueda -->
                     <div id="searchResults" class="results-area hidden">
                         <div id="profileHeader"></div>
                         <p class="dashboard-title">Resumen SST 360°</p>
@@ -144,7 +154,6 @@
                 </div>
             </section>
 
-            <!-- ─── EDITAR TRABAJADOR ─── -->
             <section id="mod-editar" class="module">
                 <div class="header-module">
                     <h1>Editar Perfil de Trabajador</h1>
@@ -188,7 +197,6 @@
                 </form>
             </section>
 
-            <!-- ─── REGISTRO DE PERSONAL ─── -->
             <section id="mod-registro" class="module">
                 <div class="header-module">
                     <h1>Registrar Nuevo Trabajador</h1>
@@ -221,14 +229,20 @@
                 </form>
             </section>
 
-            <!-- ─── MOD 1: EPP ─── -->
             <section id="mod-epp" class="module">
                 <div class="header-module">
                     <h1>Equipos de Protección Personal</h1>
-                    <p>Registre la entrega de EPP al trabajador seleccionado.</p>
+                    <p>Registre la entrega de EPP o verifique el estado actual.</p>
                     <span class="mod-badge">Módulo 1</span>
                 </div>
                 <form id="eppForm" class="card">
+                    <div class="form-field" style="grid-column: 1 / -1; background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <label>Trabajador (DNI)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="eppDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                            <button type="button" id="eppBuscarBtn" class="btn-secondary">🔍 Ver Estado</button>
+                        </div>
+                    </div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label>🥾 Zapatos de Seguridad</label>
@@ -254,20 +268,26 @@
                             </select>
                             <input type="date" id="eppFechaCasco">
                         </div>
-                        <button type="submit" class="btn-primary btn-full">💾 Registrar Entrega de EPP</button>
+                        <button type="submit" class="btn-primary btn-full">💾 Guardar Estado EPP</button>
                     </div>
                 </form>
             </section>
 
-            <!-- ─── MOD 2: CAPACITACIONES ─── -->
             <section id="mod-capacitaciones" class="module">
                 <div class="header-module">
                     <h1>Registro de Capacitaciones</h1>
-                    <p>Documente la participación del trabajador en actividades de capacitación.</p>
+                    <p>Documente y consulte el historial de capacitaciones.</p>
                     <span class="mod-badge">Módulo 2</span>
                 </div>
                 <div class="card">
                     <form id="capForm" style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                            <label>Trabajador (DNI)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="capDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                                <button type="button" id="capBuscarBtn" class="btn-secondary">🔍 Ver Historial</button>
+                            </div>
+                        </div>
                         <div class="form-field">
                             <label>Tema de Capacitación</label>
                             <input type="text" id="capTema" placeholder="Ej. Manejo seguro de cargas" required>
@@ -290,13 +310,12 @@
                                 <input type="date" id="capFechaAsistencia">
                             </div>
                         </div>
-                        <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Guardar Capacitación</button>
+                        <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Agregar Capacitación</button>
                     </form>
                     <div id="hist-cap" class="history-container hidden"></div>
                 </div>
             </section>
 
-            <!-- ─── MOD 3: INDUCCIÓN ─── -->
             <section id="mod-induccion" class="module">
                 <div class="header-module">
                     <h1>Inducción SST</h1>
@@ -304,6 +323,13 @@
                     <span class="mod-badge">Módulo 3</span>
                 </div>
                 <form id="indForm" class="card">
+                    <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <label>Trabajador (DNI)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="indDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                            <button type="button" id="indBuscarBtn" class="btn-secondary">🔍 Consultar</button>
+                        </div>
+                    </div>
                     <div class="form-field">
                         <label>Estado de Inducción</label>
                         <select id="indEstado" required>
@@ -315,11 +341,10 @@
                         <label>Fecha de Inducción</label>
                         <input type="date" id="indFecha">
                     </div>
-                    <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Guardar</button>
+                    <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Guardar Inducción</button>
                 </form>
             </section>
 
-            <!-- ─── MOD 4: RISST ─── -->
             <section id="mod-risst" class="module">
                 <div class="header-module">
                     <h1>Entrega de RISST</h1>
@@ -328,6 +353,13 @@
                 </div>
                 <div class="card">
                     <form id="risstForm" style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                            <label>Trabajador (DNI)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="risstDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                                <button type="button" id="risstBuscarBtn" class="btn-secondary">🔍 Consultar</button>
+                            </div>
+                        </div>
                         <div class="form-field">
                             <label>¿Se entregó el RISST?</label>
                             <select id="risstEstado" required>
@@ -344,7 +376,6 @@
                 </div>
             </section>
 
-            <!-- ─── MOD 5: EMO ─── -->
             <section id="mod-emo" class="module">
                 <div class="header-module">
                     <h1>Examen Médico Ocupacional</h1>
@@ -352,9 +383,16 @@
                     <span class="mod-badge">Módulo 5</span>
                 </div>
                 <form id="emoForm" class="card">
+                    <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <label>Trabajador (DNI)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="emoDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                            <button type="button" id="emoBuscarBtn" class="btn-secondary">🔍 Consultar</button>
+                        </div>
+                    </div>
                     <div class="form-field">
-                        <label>Trabajador</label>
-                        <input type="text" id="emoTrabajador" class="input-readonly" readonly placeholder="Se cargará al buscar un trabajador">
+                        <label>Nombre Registrado (Autocompletado)</label>
+                        <input type="text" id="emoTrabajador" class="input-readonly" readonly placeholder="Se cargará al hacer clic en Consultar">
                     </div>
                     <div class="form-grid">
                         <div class="form-field">
@@ -382,15 +420,21 @@
                 </form>
             </section>
 
-            <!-- ─── MOD 6: ACTOS INSEGUROS ─── -->
             <section id="mod-actos" class="module">
                 <div class="header-module">
                     <h1>Reporte de Actos Inseguros</h1>
-                    <p>Documente las observaciones de seguridad y las medidas correctivas aplicadas.</p>
+                    <p>Documente las observaciones de seguridad y las medidas correctivas.</p>
                     <span class="mod-badge">Módulo 6</span>
                 </div>
                 <div class="card">
                     <form id="actosForm" style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                            <label>Infractor (DNI)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="actoDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                                <button type="button" id="actoBuscarBtn" class="btn-secondary">🔍 Ver Historial</button>
+                            </div>
+                        </div>
                         <div class="form-grid">
                             <div class="form-field">
                                 <label>Fecha de la Inspección</label>
@@ -411,12 +455,10 @@
                         </div>
                         <button type="submit" class="btn-danger" style="align-self:flex-start;">⚠️ Registrar Incidencia</button>
                     </form>
-
                     <div id="hist-actos" class="history-container hidden"></div>
                 </div>
             </section>
 
-            <!-- ─── MOD 7: IPERC ─── -->
             <section id="mod-iperc" class="module">
                 <div class="header-module">
                     <h1>IPERC Continuo</h1>
@@ -425,6 +467,13 @@
                 </div>
                 <div class="card">
                     <form id="ipercForm" style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                            <label>Trabajador (DNI)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="ipercDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                                <button type="button" id="ipercBuscarBtn" class="btn-secondary">🔍 Ver Historial</button>
+                            </div>
+                        </div>
                         <div class="form-field">
                             <label>Fecha de Control</label>
                             <input type="date" id="ipercFecha" required>
@@ -437,13 +486,12 @@
                                 <option value="No">❌ No</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Guardar Control Diario</button>
+                        <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Guardar Control</button>
                     </form>
                     <div id="hist-iperc" class="history-container hidden"></div>
                 </div>
             </section>
 
-            <!-- ─── MOD 8: PTAR ─── -->
             <section id="mod-ptar" class="module">
                 <div class="header-module">
                     <h1>Permisos de Trabajo de Alto Riesgo</h1>
@@ -452,6 +500,13 @@
                 </div>
                 <div class="card">
                     <form id="ptarForm" style="display:flex;flex-direction:column;gap:14px;">
+                        <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                            <label>Responsable (DNI)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="ptarDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                                <button type="button" id="ptarBuscarBtn" class="btn-secondary">🔍 Ver Historial</button>
+                            </div>
+                        </div>
                         <div class="form-field">
                             <label>Fecha del Trabajo</label>
                             <input type="date" id="ptarFecha" required>
@@ -479,7 +534,6 @@
                 </div>
             </section>
 
-            <!-- ─── MOD 9: VIGILANCIA MÉDICA ─── -->
             <section id="mod-vigilancia" class="module">
                 <div class="header-module">
                     <h1>Vigilancia Médica Ocupacional</h1>
@@ -487,6 +541,13 @@
                     <span class="mod-badge">Módulo 9</span>
                 </div>
                 <form id="vigForm" class="card">
+                    <div class="form-field" style="background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <label>Paciente (DNI)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="vigDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                            <button type="button" id="vigBuscarBtn" class="btn-secondary">🔍 Consultar</button>
+                        </div>
+                    </div>
                     <div class="form-field">
                         <label>Enfermedad o Condición Previa Declarada</label>
                         <input type="text" id="vigEnfermedad" placeholder="Ej. Asma, Diabetes, Hipertensión...">
@@ -504,11 +565,10 @@
                             <textarea id="vigDetalle" rows="3" placeholder="Describa el plan de seguimiento médico..."></textarea>
                         </div>
                     </div>
-                    <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Actualizar Expediente Médico</button>
+                    <button type="submit" class="btn-primary" style="align-self:flex-start;">💾 Actualizar Expediente</button>
                 </form>
             </section>
 
-            <!-- ─── MOD 10: VACUNAS ─── -->
             <section id="mod-vacunas" class="module">
                 <div class="header-module">
                     <h1>Esquema de Vacunación Ocupacional</h1>
@@ -516,6 +576,13 @@
                     <span class="mod-badge">Módulo 10</span>
                 </div>
                 <form id="vacunasForm" class="card">
+                    <div class="form-field" style="grid-column: 1 / -1; background: var(--surface-2); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <label>Trabajador (DNI)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="vacDni" placeholder="Ingrese DNI" maxlength="8" required style="flex:1;">
+                            <button type="button" id="vacBuscarBtn" class="btn-secondary">🔍 Consultar Cartilla</button>
+                        </div>
+                    </div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label>💉 Hepatitis B</label>
@@ -554,7 +621,6 @@
                 </form>
             </section>
 
-            <!-- ─── PANEL DE ESTADÍSTICAS ─── -->
             <section id="mod-estadisticas" class="module">
                 <div class="header-module">
                     <div class="header-module-text">
