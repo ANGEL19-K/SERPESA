@@ -3,121 +3,146 @@
 // ==============================================================
 
 // ==============================================================
-//  LÓGICA DE ALERTAS GLOBALES DEL SISTEMA
+//  LÓGICA DE ALERTAS GLOBALES DEL SISTEMA (Categorizadas)
 // ==============================================================
 async function cargarAlertasGlobales() {
     const alertasContainer = document.getElementById('alertasContainer');
-    const alertasList = document.getElementById('alertasList');
     const noAlertsMsg = document.getElementById('noAlertsMsg');
+
+    // Referencias a las secciones
+    const secEmo = document.getElementById('sec-alertas-emo');
+    const secEpp = document.getElementById('sec-alertas-epp');
+    const secVacunas = document.getElementById('sec-alertas-vacunas');
+    const secActos = document.getElementById('sec-alertas-actos');
+
+    // Referencias a las listas internas
+    const listEmo = document.getElementById('list-alertas-emo');
+    const listEpp = document.getElementById('list-alertas-epp');
+    const listVacunas = document.getElementById('list-alertas-vacunas');
+    const listActos = document.getElementById('list-alertas-actos');
     
     try {
-        const [reqTrabajadores, reqEMO, reqEPP, reqVacunas, reqActos, reqInduccion] = await Promise.all([
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EMO&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EPPs&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Vacunas&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Actos_Inseguros&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Induccion&action=readAll`)
+        // 💡 ANTI-CACHÉ: Obliga a descargar siempre los datos frescos
+        const noCache = new Date().getTime();
+
+        const [reqTrabajadores, reqEMO, reqEPP, reqVacunas, reqActos] = await Promise.all([
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EMO&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EPPs&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Vacunas&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Actos_Inseguros&action=readAll&_=${noCache}`)
         ]);
 
-        const [trabajadores, emos, epps, vacunas, actos, inducciones] = await Promise.all([
-            reqTrabajadores.json(), reqEMO.json(), reqEPP.json(), reqVacunas.json(), reqActos.json(), reqInduccion.json()
+        const [trabajadores, emos, epps, vacunas, actos] = await Promise.all([
+            reqTrabajadores.json(), reqEMO.json(), reqEPP.json(), reqVacunas.json(), reqActos.json()
         ]);
 
         const trabajadoresActivos = trabajadores.filter(t => t.Estado !== 'Inactivo');
-        const alertas = [];
-
-        // Alerta 1: EMO próximo a vencer (< 60 días)
+        
+        // Creamos objetos separados para cada categoría
+        const alertas = { emo: [], epp: [], vacunas: [], actos: [] };
+        
         const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        // 1. Clasificar Alertas EMO
         trabajadoresActivos.forEach(t => {
-            const miEMO = emos.find(e => e.DNI == t.DNI);
+            const miEMO = [...emos].reverse().find(e => e.DNI == t.DNI); // Tomamos el más reciente
             if (miEMO && miEMO.Fecha_Examen) {
                 const fechaExamen = new Date(miEMO.Fecha_Examen);
-                const diasRestantes = Math.floor((fechaExamen - hoy) / (1000 * 60 * 60 * 24));
-                if (diasRestantes >= 0 && diasRestantes < 60) {
-                    alertas.push({
-                        tipo: 'emo',
-                        titulo: `📋 ${t.Nombre_Completo || t.Nombre} - EMO próximo a vencer`,
-                        detalle: `Vence en ${diasRestantes} días (${formatFecha(miEMO.Fecha_Examen)})`,
-                        dni: t.DNI,
-                        prioridad: diasRestantes < 15 ? 'critica' : 'warning'
-                    });
+                const fechaVencimiento = new Date(fechaExamen);
+                fechaVencimiento.setFullYear(fechaExamen.getFullYear() + 1);
+                fechaVencimiento.setHours(0, 0, 0, 0);
+
+                const diasRestantes = Math.ceil((fechaVencimiento - hoy) / (1000 * 60 * 60 * 24));
+
+                if (diasRestantes <= 3) {
+                    if (diasRestantes < 0) {
+                        alertas.emo.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `Venció hace ${Math.abs(diasRestantes)} días (${formatFecha(fechaVencimiento)})`, dni: t.DNI, prioridad: 'critica' });
+                    } else if (diasRestantes === 0) {
+                        alertas.emo.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `VENCE HOY - Renovación inmediata`, dni: t.DNI, prioridad: 'critica' });
+                    } else {
+                        alertas.emo.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `Por vencer en ${diasRestantes} días (el ${formatFecha(fechaVencimiento)})`, dni: t.DNI, prioridad: 'warning' });
+                    }
                 }
             }
         });
 
-        // Alerta 2: EPP pendiente
+        // 2. Clasificar Alertas EPP
         trabajadoresActivos.forEach(t => {
-            const miEPP = epps.find(e => e.DNI == t.DNI);
+            const miEPP = [...epps].reverse().find(e => e.DNI == t.DNI);
             if (!miEPP || miEPP.Casco === 'Pendiente' || miEPP.Zapato_Seguridad === 'Pendiente' || miEPP.Ropa_Trabajo === 'Pendiente') {
-                alertas.push({
-                    tipo: 'epp',
-                    titulo: `🛡️ ${t.Nombre_Completo || t.Nombre} - Equipos pendientes`,
-                    detalle: 'Tiene EPP sin asignar o incompletos',
-                    dni: t.DNI,
-                    prioridad: 'warning'
-                });
+                alertas.epp.push({ titulo: `🛡️ ${t.Nombre_Completo || t.Nombre}`, detalle: 'Tiene EPP sin asignar o incompletos', dni: t.DNI, prioridad: 'warning' });
             }
         });
 
-        // Alerta 3: Vacunas pendientes
+        // 3. Clasificar Alertas Vacunas
         trabajadoresActivos.forEach(t => {
-            const miVacuna = vacunas.find(v => v.DNI == t.DNI);
+            const miVacuna = [...vacunas].reverse().find(v => v.DNI == t.DNI);
             if (!miVacuna || miVacuna.Tetanos_Estado === 'Pendiente' || miVacuna.COVID_Estado === 'Pendiente') {
-                alertas.push({
-                    tipo: 'vacunas',
-                    titulo: `💉 ${t.Nombre_Completo || t.Nombre} - Vacunas incompletas`,
-                    detalle: 'Faltan vacunas por aplicar',
-                    dni: t.DNI,
-                    prioridad: 'warning'
-                });
+                alertas.vacunas.push({ titulo: `💉 ${t.Nombre_Completo || t.Nombre}`, detalle: 'Faltan vacunas en su esquema', dni: t.DNI, prioridad: 'warning' });
             }
         });
 
-        // Alerta 4: Actos inseguros sin cerrar (últimos 7 días)
+        // 4. Clasificar Alertas Actos Inseguros
         const hace7dias = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
         const actosRecientes = actos.filter(a => new Date(a.Fecha_Inspeccion) > hace7dias);
-        if (actosRecientes.length > 0) {
-            alertas.push({
-                tipo: 'actos',
-                titulo: `⚠️ Actos inseguros recientes`,
-                detalle: `${actosRecientes.length} acto(s) reportado(s) en los últimos 7 días`,
-                dni: null,
-                prioridad: 'warning'
+        
+        actosRecientes.forEach(acto => {
+            const trabajador = trabajadoresActivos.find(t => t.DNI == acto.DNI);
+            const nombreTrabajador = trabajador ? (trabajador.Nombre_Completo || trabajador.Nombre) : "Trabajador no registrado";
+            
+            alertas.actos.push({ 
+                titulo: `⚠️ ${nombreTrabajador}`, 
+                detalle: `El ${formatFecha(acto.Fecha_Inspeccion)}: ${acto.Acto_Inseguro_Cometido || 'Infracción registrada'}`, 
+                dni: acto.DNI, 
+                prioridad: 'critica' 
             });
-        }
+        });
 
-        // Mostrar alertas
-        if (alertas.length === 0) {
+        // --- Función auxiliar para inyectar HTML en cada sección ---
+        const renderSection = (listElement, sectionElement, dataArray) => {
+            if (dataArray.length === 0) {
+                sectionElement.classList.add('hidden'); 
+            } else {
+                sectionElement.classList.remove('hidden'); 
+                listElement.innerHTML = '';
+                dataArray.forEach(alerta => {
+                    const alertaEl = document.createElement('div');
+                    alertaEl.className = `alerta-item ${alerta.prioridad === 'critica' ? '' : 'warning'}`;
+                    alertaEl.innerHTML = `
+                        <div class="alerta-content">
+                            <div class="alerta-titulo">${alerta.titulo}</div>
+                            <div class="alerta-detalle">${alerta.detalle}</div>
+                        </div>
+                        ${alerta.prioridad === 'critica' ? '<div class="alerta-badge">URGENTE</div>' : ''}
+                    `;
+                    if (alerta.dni) {
+                        alertaEl.addEventListener('click', () => {
+                            document.querySelector('.nav-btn[data-target="mod-search"]').click();
+                            document.getElementById('searchInput').value = alerta.dni;
+                            document.getElementById('searchBtn').click();
+                        });
+                    }
+                    listElement.appendChild(alertaEl);
+                });
+            }
+        };
+
+        renderSection(listEmo, secEmo, alertas.emo);
+        renderSection(listEpp, secEpp, alertas.epp);
+        renderSection(listVacunas, secVacunas, alertas.vacunas);
+        renderSection(listActos, secActos, alertas.actos);
+
+        const totalAlertas = alertas.emo.length + alertas.epp.length + alertas.vacunas.length + alertas.actos.length;
+        if (totalAlertas === 0) {
             alertasContainer.classList.add('hidden');
             if(noAlertsMsg) noAlertsMsg.classList.remove('hidden');
         } else {
             alertasContainer.classList.remove('hidden');
             if(noAlertsMsg) noAlertsMsg.classList.add('hidden');
-            
-            alertasList.innerHTML = '';
-            alertas.forEach(alerta => {
-                const alertaEl = document.createElement('div');
-                alertaEl.className = `alerta-item ${alerta.prioridad === 'critica' ? '' : 'warning'}`;
-                alertaEl.innerHTML = `
-                    <div class="alerta-content">
-                        <div class="alerta-titulo">${alerta.titulo}</div>
-                        <div class="alerta-detalle">${alerta.detalle}</div>
-                    </div>
-                    ${alerta.prioridad === 'critica' ? '<div class="alerta-badge">CRÍTICO</div>' : ''}
-                `;
-                if (alerta.dni) {
-                    alertaEl.addEventListener('click', () => {
-                        // Cambiar al tab de buscador
-                        document.querySelector('.nav-btn[data-target="mod-search"]').click();
-                        // Llenar el input y buscar
-                        document.getElementById('searchInput').value = alerta.dni;
-                        document.getElementById('searchBtn').click();
-                    });
-                }
-                alertasList.appendChild(alertaEl);
-            });
         }
+
     } catch (error) {
         console.error("Error cargando alertas:", error);
     }
@@ -131,11 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            // Remover la clase 'active' de todos los botones y módulos
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
             
-            // Agregar 'active' al botón clicado y al módulo correspondiente
             const buttonClicked = e.target.closest('.nav-btn');
             buttonClicked.classList.add('active');
             
@@ -145,15 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetModule.classList.add('active');
             }
 
-            // Si es el módulo de estadísticas, cargar los gráficos
-            if (targetId === 'mod-estadisticas') {
-                cargarEstadisticas();
-            }
-
-            // Si es el módulo de alertas, cargarlas
-            if (targetId === 'mod-alertas') {
-                cargarAlertasGlobales();
-            }
+            if (targetId === 'mod-estadisticas') cargarEstadisticas();
+            if (targetId === 'mod-alertas') cargarAlertasGlobales();
         });
     });
 
@@ -201,7 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!dni) return alert("Ingrese un DNI válido");
 
             try {
-                const res = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll`);
+                const noCache = new Date().getTime();
+                const res = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll&_=${noCache}`);
                 const trabajadores = await res.json();
                 const trabajador = trabajadores.find(t => t.DNI == dni || t.DNI === parseInt(dni));
 
@@ -209,13 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return alert("Trabajador no encontrado en la base de datos.");
                 }
 
-                // Llenar el formulario con los datos del trabajador
                 document.getElementById('editNombre').value = trabajador.Nombre_Completo || trabajador.Nombre || '';
                 document.getElementById('editPuesto').value = trabajador.Puesto || '';
                 document.getElementById('editArea').value = trabajador.Area || '';
                 document.getElementById('editEstado').value = trabajador.Estado || 'Activo';
-
-                // Mostrar el formulario de edición
                 document.getElementById('editFormContainer').classList.remove('hidden');
             } catch (error) {
                 console.error(error);
@@ -236,9 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('editArea').value,
                 document.getElementById('editEstado').value
             ];
-            // Llamamos a guardarRegistro (que vive en sheets-api.js)
             guardarRegistro('editarForm', 'Trabajadores', valores, 'upsert');
-            
             setTimeout(() => {
                 document.getElementById('editarForm').reset();
                 document.getElementById('editFormContainer').classList.add('hidden');
@@ -262,13 +274,14 @@ let chartInstances = {};
 
 async function cargarEstadisticas() {
     try {
+        const noCache = new Date().getTime();
         const [reqTrabajadores, reqEMO, reqEPP, reqVacunas, reqActos, reqInduccion] = await Promise.all([
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EMO&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EPPs&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Vacunas&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Actos_Inseguros&action=readAll`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Induccion&action=readAll`)
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EMO&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=EPPs&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Vacunas&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Actos_Inseguros&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Induccion&action=readAll&_=${noCache}`)
         ]);
 
         const [trabajadores, emos, epps, vacunas, actos, inducciones] = await Promise.all([
@@ -292,16 +305,24 @@ async function cargarEstadisticas() {
 
 function generarGraficoEMO(trabajadores, emos) {
     let vigentes = 0, vencidos = 0, sinEMO = 0;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
     trabajadores.forEach(t => {
-        const miEMO = emos.find(e => e.DNI == t.DNI);
-        if (!miEMO) { sinEMO++; } else {
+        const miEMO = [...emos].reverse().find(e => e.DNI == t.DNI);
+        if (!miEMO) { 
+            sinEMO++; 
+        } else {
             const fechaExamen = new Date(miEMO.Fecha_Examen);
-            const hoy = new Date();
-            const meses = (hoy.getFullYear() - fechaExamen.getFullYear()) * 12 + (hoy.getMonth() - fechaExamen.getMonth());
-            if (meses >= 12) vencidos++;
+            const fechaVencimiento = new Date(fechaExamen);
+            fechaVencimiento.setFullYear(fechaExamen.getFullYear() + 1); 
+            fechaVencimiento.setHours(0, 0, 0, 0);
+            
+            if (hoy > fechaVencimiento) vencidos++;
             else vigentes++;
         }
     });
+
     const ctx = document.getElementById('chartEMO').getContext('2d');
     if (chartInstances.emo) chartInstances.emo.destroy();
     chartInstances.emo = new Chart(ctx, {
@@ -335,7 +356,7 @@ function generarGraficoActosPorArea(actos, trabajadores) {
 function generarGraficoVacunacion(trabajadores, vacunas) {
     let completas = 0, incompletas = 0, sinVacunas = 0;
     trabajadores.forEach(t => {
-        const miVacuna = vacunas.find(v => v.DNI == t.DNI);
+        const miVacuna = [...vacunas].reverse().find(v => v.DNI == t.DNI);
         if (!miVacuna) { sinVacunas++; } else {
             const todasAplicadas = miVacuna.Hepatitis_B_Estado === 'Aplicada' && miVacuna.Influenza_Estado === 'Aplicada' && miVacuna.Tetanos_Estado === 'Aplicada' && miVacuna.COVID_Estado === 'Aplicada';
             if (todasAplicadas) completas++; else incompletas++;
@@ -356,7 +377,7 @@ function generarGraficoVacunacion(trabajadores, vacunas) {
 function generarGraficoEPP(trabajadores, epps) {
     let completos = 0, pendientes = 0, sinAsignar = 0;
     trabajadores.forEach(t => {
-        const miEPP = epps.find(e => e.DNI == t.DNI);
+        const miEPP = [...epps].reverse().find(e => e.DNI == t.DNI);
         if (!miEPP) { sinAsignar++; } else {
             const esPendiente = miEPP.Casco === 'Pendiente' || miEPP.Zapato_Seguridad === 'Pendiente' || miEPP.Ropa_Trabajo === 'Pendiente';
             if (esPendiente) pendientes++; else completos++;
@@ -395,7 +416,7 @@ function generarGraficoAreas(trabajadores) {
 function generarGraficoInduccion(trabajadores, inducciones) {
     let recibidas = 0, pendientes = 0;
     trabajadores.forEach(t => {
-        const miInduccion = inducciones.find(i => i.DNI == t.DNI);
+        const miInduccion = [...inducciones].reverse().find(i => i.DNI == t.DNI);
         if (miInduccion && miInduccion.Estado === 'Recibida') { recibidas++; } else { pendientes++; }
     });
     const ctx = document.getElementById('chartInduccion').getContext('2d');
