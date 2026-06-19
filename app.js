@@ -3,26 +3,25 @@
 // ==============================================================
 
 // ==============================================================
-//  LÓGICA DE ALERTAS GLOBALES DEL SISTEMA (Categorizadas)
+//  LÓGICA DE ALERTAS GLOBALES DEL SISTEMA (Desplegables)
 // ==============================================================
 async function cargarAlertasGlobales() {
     const alertasContainer = document.getElementById('alertasContainer');
     const noAlertsMsg = document.getElementById('noAlertsMsg');
 
-    // Referencias a las secciones
-    const secEmo = document.getElementById('sec-alertas-emo');
+    const secEmoVencidos = document.getElementById('sec-alertas-emo-vencidos');
+    const secEmoFaltantes = document.getElementById('sec-alertas-emo-faltantes');
     const secEpp = document.getElementById('sec-alertas-epp');
     const secVacunas = document.getElementById('sec-alertas-vacunas');
     const secActos = document.getElementById('sec-alertas-actos');
 
-    // Referencias a las listas internas
-    const listEmo = document.getElementById('list-alertas-emo');
+    const listEmoVencidos = document.getElementById('list-alertas-emo-vencidos');
+    const listEmoFaltantes = document.getElementById('list-alertas-emo-faltantes');
     const listEpp = document.getElementById('list-alertas-epp');
     const listVacunas = document.getElementById('list-alertas-vacunas');
     const listActos = document.getElementById('list-alertas-actos');
     
     try {
-        // 💡 ANTI-CACHÉ: Obliga a descargar siempre los datos frescos
         const noCache = new Date().getTime();
 
         const [reqTrabajadores, reqEMO, reqEPP, reqVacunas, reqActos] = await Promise.all([
@@ -39,36 +38,31 @@ async function cargarAlertasGlobales() {
 
         const trabajadoresActivos = trabajadores.filter(t => t.Estado !== 'Inactivo');
         
-        // Creamos objetos separados para cada categoría
-        const alertas = { emo: [], epp: [], vacunas: [], actos: [] };
-        
+        const alertas = { emoVencidos: [], emoFaltantes: [], epp: [], vacunas: [], actos: [] };
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
 
-        // 1. Clasificar Alertas EMO
+        // 1. EMOs
         trabajadoresActivos.forEach(t => {
-            const miEMO = [...emos].reverse().find(e => e.DNI == t.DNI); // Tomamos el más reciente
-            if (miEMO && miEMO.Fecha_Examen) {
+            const miEMO = [...emos].reverse().find(e => e.DNI == t.DNI);
+            if (!miEMO || !miEMO.Fecha_Examen || miEMO.Fecha_Examen === "") {
+                alertas.emoFaltantes.push({ titulo: `👤 ${t.Nombre_Completo || t.Nombre}`, detalle: `Sin Examen Médico registrado.`, dni: t.DNI, prioridad: 'warning' });
+            } else {
                 const fechaExamen = new Date(miEMO.Fecha_Examen);
                 const fechaVencimiento = new Date(fechaExamen);
                 fechaVencimiento.setFullYear(fechaExamen.getFullYear() + 1);
                 fechaVencimiento.setHours(0, 0, 0, 0);
-
                 const diasRestantes = Math.ceil((fechaVencimiento - hoy) / (1000 * 60 * 60 * 24));
 
                 if (diasRestantes <= 3) {
-                    if (diasRestantes < 0) {
-                        alertas.emo.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `Venció hace ${Math.abs(diasRestantes)} días (${formatFecha(fechaVencimiento)})`, dni: t.DNI, prioridad: 'critica' });
-                    } else if (diasRestantes === 0) {
-                        alertas.emo.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `VENCE HOY - Renovación inmediata`, dni: t.DNI, prioridad: 'critica' });
-                    } else {
-                        alertas.emo.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `Por vencer en ${diasRestantes} días (el ${formatFecha(fechaVencimiento)})`, dni: t.DNI, prioridad: 'warning' });
-                    }
+                    if (diasRestantes < 0) alertas.emoVencidos.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `Venció hace ${Math.abs(diasRestantes)} días (${formatFecha(fechaVencimiento)})`, dni: t.DNI, prioridad: 'critica' });
+                    else if (diasRestantes === 0) alertas.emoVencidos.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `VENCE HOY - Renovación inmediata`, dni: t.DNI, prioridad: 'critica' });
+                    else alertas.emoVencidos.push({ titulo: `📋 ${t.Nombre_Completo || t.Nombre}`, detalle: `Por vencer en ${diasRestantes} días`, dni: t.DNI, prioridad: 'warning' });
                 }
             }
         });
 
-        // 2. Clasificar Alertas EPP
+        // 2. EPP
         trabajadoresActivos.forEach(t => {
             const miEPP = [...epps].reverse().find(e => e.DNI == t.DNI);
             if (!miEPP || miEPP.Casco === 'Pendiente' || miEPP.Zapato_Seguridad === 'Pendiente' || miEPP.Ropa_Trabajo === 'Pendiente') {
@@ -76,7 +70,7 @@ async function cargarAlertasGlobales() {
             }
         });
 
-        // 3. Clasificar Alertas Vacunas
+        // 3. Vacunas
         trabajadoresActivos.forEach(t => {
             const miVacuna = [...vacunas].reverse().find(v => v.DNI == t.DNI);
             if (!miVacuna || miVacuna.Tetanos_Estado === 'Pendiente' || miVacuna.COVID_Estado === 'Pendiente') {
@@ -84,28 +78,26 @@ async function cargarAlertasGlobales() {
             }
         });
 
-        // 4. Clasificar Alertas Actos Inseguros
+        // 4. Actos Inseguros
         const hace7dias = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
         const actosRecientes = actos.filter(a => new Date(a.Fecha_Inspeccion) > hace7dias);
-        
         actosRecientes.forEach(acto => {
             const trabajador = trabajadoresActivos.find(t => t.DNI == acto.DNI);
-            const nombreTrabajador = trabajador ? (trabajador.Nombre_Completo || trabajador.Nombre) : "Trabajador no registrado";
-            
-            alertas.actos.push({ 
-                titulo: `⚠️ ${nombreTrabajador}`, 
-                detalle: `El ${formatFecha(acto.Fecha_Inspeccion)}: ${acto.Acto_Inseguro_Cometido || 'Infracción registrada'}`, 
-                dni: acto.DNI, 
-                prioridad: 'critica' 
-            });
+            const nombreTrabajador = trabajador ? (trabajador.Nombre_Completo || trabajador.Nombre) : "Desconocido";
+            alertas.actos.push({ titulo: `⚠️ ${nombreTrabajador}`, detalle: `${formatFecha(acto.Fecha_Inspeccion)}: ${acto.Acto_Inseguro_Cometido || 'Infracción'}`, dni: acto.DNI, prioridad: 'critica' });
         });
 
-        // --- Función auxiliar para inyectar HTML en cada sección ---
-        const renderSection = (listElement, sectionElement, dataArray) => {
+        // --- Función auxiliar actualizada para los Acordeones ---
+        const renderSection = (listElement, sectionElement, dataArray, badgeId) => {
+            const badge = document.getElementById(badgeId);
+            
             if (dataArray.length === 0) {
                 sectionElement.classList.add('hidden'); 
+                sectionElement.removeAttribute('open');
             } else {
                 sectionElement.classList.remove('hidden'); 
+                if(badge) badge.innerText = dataArray.length; // Inyecta el número en la burbujita
+                
                 listElement.innerHTML = '';
                 dataArray.forEach(alerta => {
                     const alertaEl = document.createElement('div');
@@ -129,12 +121,13 @@ async function cargarAlertasGlobales() {
             }
         };
 
-        renderSection(listEmo, secEmo, alertas.emo);
-        renderSection(listEpp, secEpp, alertas.epp);
-        renderSection(listVacunas, secVacunas, alertas.vacunas);
-        renderSection(listActos, secActos, alertas.actos);
+        renderSection(listEmoVencidos, secEmoVencidos, alertas.emoVencidos, 'badge-emo-vencidos');
+        renderSection(listEmoFaltantes, secEmoFaltantes, alertas.emoFaltantes, 'badge-emo-faltantes');
+        renderSection(listEpp, secEpp, alertas.epp, 'badge-epp');
+        renderSection(listVacunas, secVacunas, alertas.vacunas, 'badge-vacunas');
+        renderSection(listActos, secActos, alertas.actos, 'badge-actos');
 
-        const totalAlertas = alertas.emo.length + alertas.epp.length + alertas.vacunas.length + alertas.actos.length;
+        const totalAlertas = alertas.emoVencidos.length + alertas.emoFaltantes.length + alertas.epp.length + alertas.vacunas.length + alertas.actos.length;
         if (totalAlertas === 0) {
             alertasContainer.classList.add('hidden');
             if(noAlertsMsg) noAlertsMsg.classList.remove('hidden');
@@ -180,9 +173,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (emoAptitud) {
         emoAptitud.addEventListener('change', (e) => {
-            if (e.target.value === 'Apto con restricciones') {
+            const valor = e.target.value;
+            if (valor === 'Apto con restricciones' || valor === 'Observado' || valor === 'Con Observaciones') {
                 emoRestriccionesContainer.classList.remove('hidden');
                 emoDetalleRestriccion.setAttribute('required', 'true');
+                
+                const label = emoRestriccionesContainer.querySelector('label');
+                if (valor === 'Observado' || valor === 'Con Observaciones') {
+                    label.innerText = 'Detalle de Observaciones';
+                    emoDetalleRestriccion.placeholder = 'Describa las observaciones médicas pendientes...';
+                } else {
+                    label.innerText = 'Detalle de Restricciones';
+                    emoDetalleRestriccion.placeholder = 'Describa las restricciones médicas...';
+                }
             } else {
                 emoRestriccionesContainer.classList.add('hidden');
                 emoDetalleRestriccion.removeAttribute('required');
@@ -428,6 +431,55 @@ function generarGraficoInduccion(trabajadores, inducciones) {
             datasets: [{ data: [recibidas, pendientes], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 2 }]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+// ==============================================================
+//  GENERADOR DE EXCEL MAESTRO (CLIENT-SIDE)
+// ==============================================================
+const btnDescargarExcel = document.getElementById('btnDescargarExcel');
+if (btnDescargarExcel) {
+    btnDescargarExcel.addEventListener('click', async () => {
+        const originalText = btnDescargarExcel.innerHTML;
+        btnDescargarExcel.innerHTML = '<span>⏳</span> Construyendo Excel...';
+        btnDescargarExcel.disabled = true;
+
+        try {
+            const noCache = new Date().getTime();
+            // Lista exacta de las hojas que tienes en tu Google Sheets
+            const hojas = ['Trabajadores', 'EPPs', 'Capacitaciones', 'Induccion', 'RISST', 'EMO', 'Actos_Inseguros', 'IPERC', 'PTAR', 'Vigilancia_Medica', 'Vacunas'];
+            
+            // Creamos un libro de Excel en blanco
+            const wb = XLSX.utils.book_new();
+
+            // Descargamos la data de TODAS las hojas al mismo tiempo
+            const promesas = hojas.map(sheet => fetch(`${GOOGLE_SCRIPT_URL}?sheet=${sheet}&action=readAll&_=${noCache}`).then(r => r.json()));
+            const resultados = await Promise.all(promesas);
+
+            // Recorremos cada resultado y lo convertimos en una pestaña del Excel
+            hojas.forEach((nombreHoja, index) => {
+                const data = resultados[index];
+                
+                // Si la hoja tiene datos, la pasamos a Excel. Si está vacía, le ponemos un mensajito.
+                const dataFinal = data.length > 0 ? data : [{ Mensaje: "No hay registros en este módulo aún." }];
+                
+                const ws = XLSX.utils.json_to_sheet(dataFinal);
+                XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+            });
+
+            // Usamos la función formatFecha que ya tienes en el otro archivo para el nombre del archivo
+            const fechaHoy = new Date().toISOString().split('T')[0];
+            const nombreArchivo = `SST_Manager_Backup_${fechaHoy}.xlsx`;
+
+            // ¡Forzamos la descarga del Excel armado!
+            XLSX.writeFile(wb, nombreArchivo);
+
+        } catch (error) {
+            console.error(error);
+            alert("Error al intentar generar el archivo Excel. Verifique su conexión.");
+        } finally {
+            btnDescargarExcel.innerHTML = originalText;
+            btnDescargarExcel.disabled = false;
+        }
     });
 }
 // ============================================================== FIN DE APP.JS ==============================================================
