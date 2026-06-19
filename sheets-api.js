@@ -19,20 +19,26 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     profileHeader.innerHTML = "<p>⏳ Analizando expedientes en la base de datos (SST 360°)...</p>";
     document.querySelectorAll('.dash-status').forEach(el => el.innerHTML = "Cargando...");
 
-    // 💡 ANTI-CACHÉ: Forzamos al navegador a descargar datos frescos siempre
-    const noCache = new Date().getTime();
-
     try {
-        const [reqTrabajadores, reqEMO, reqEPP, reqVacunas, reqActos] = await Promise.all([
+        const noCache = new Date().getTime();
+        // 💡 Ahora descargamos TODAS las 11 hojas para tener la foto completa
+        const [reqTrabajadores, reqEMO, reqEPP, reqVacunas, reqActos, reqCap, reqInd, reqRisst, reqIperc, reqPtar, reqVig] = await Promise.all([
             fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll&_=${noCache}`),
             fetch(`${GOOGLE_SCRIPT_URL}?sheet=EMO&action=readAll&_=${noCache}`),
             fetch(`${GOOGLE_SCRIPT_URL}?sheet=EPPs&action=readAll&_=${noCache}`),
             fetch(`${GOOGLE_SCRIPT_URL}?sheet=Vacunas&action=readAll&_=${noCache}`),
-            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Actos_Inseguros&action=readAll&_=${noCache}`)
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Actos_Inseguros&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Capacitaciones&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Induccion&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=RISST&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=IPERC&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=PTAR&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Vigilancia_Medica&action=readAll&_=${noCache}`)
         ]);
 
-        const [trabajadores, emos, epps, vacunas, actos] = await Promise.all([
-            reqTrabajadores.json(), reqEMO.json(), reqEPP.json(), reqVacunas.json(), reqActos.json()
+        const [trabajadores, emos, epps, vacunas, actos, caps, inds, rissts, ipercs, ptars, vigs] = await Promise.all([
+            reqTrabajadores.json(), reqEMO.json(), reqEPP.json(), reqVacunas.json(), reqActos.json(),
+            reqCap.json(), reqInd.json(), reqRisst.json(), reqIperc.json(), reqPtar.json(), reqVig.json()
         ]);
 
         const trabajador = trabajadores.find(t => t.DNI == dni || t.DNI === parseInt(dni));
@@ -66,8 +72,7 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
         `;
         dashboardGrid.style.display = 'grid';
 
-        // Lógica de Semáforo EMO con vigencia de 1 AÑO
-        // En caso de duplicados, cogemos el más reciente (.reverse().find)
+        // Lógicas Originales
         const miEmo = [...emos].reverse().find(e => e.DNI == dni);
         const dashEmo = document.querySelector('#dash-emo .dash-status');
         if (miEmo && miEmo.Fecha_Examen) {
@@ -79,16 +84,10 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
             const hoy = new Date();
             hoy.setHours(0,0,0,0);
             
-            if (hoy > fechaVencimiento) {
-                dashEmo.innerHTML = `<span class="status-red">VENCIDO</span>`;
-            } else if (miEmo.Aptitud === "Apto con restricciones" || miEmo.Aptitud === "Observado") {
-                dashEmo.innerHTML = `<span class="status-yellow">${miEmo.Aptitud}</span>`;
-            } else {
-                dashEmo.innerHTML = `<span class="status-green">Vigente</span>`;
-            }
-        } else {
-            dashEmo.innerHTML = `<span class="status-red">Sin EMO</span>`;
-        }
+            if (hoy > fechaVencimiento) dashEmo.innerHTML = `<span class="status-red">VENCIDO</span>`;
+            else if (miEmo.Aptitud === "Apto con restricciones" || miEmo.Aptitud === "Observado") dashEmo.innerHTML = `<span class="status-yellow">${miEmo.Aptitud}</span>`;
+            else dashEmo.innerHTML = `<span class="status-green">Vigente</span>`;
+        } else dashEmo.innerHTML = `<span class="status-red">Sin EMO</span>`;
 
         const miEpp = [...epps].reverse().find(e => e.DNI == dni);
         const dashEpp = document.querySelector('#dash-epp .dash-status');
@@ -108,6 +107,71 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
         const dashActos = document.querySelector('#dash-actos .dash-status');
         if (misActos.length > 0) dashActos.innerHTML = `<span class="status-red">${misActos.length} Infracciones</span>`;
         else dashActos.innerHTML = `<span class="status-green">Limpio (0)</span>`;
+
+        // ─────────────────────────────────────────────────────────────
+        // LÓGICAS DE LOS NUEVOS MÓDULOS
+        // ─────────────────────────────────────────────────────────────
+        
+        // Capacitaciones
+        const misCaps = caps.filter(c => c.DNI == dni);
+        document.querySelector('#dash-cap .dash-status').innerHTML = `<span class="status-green">${misCaps.length} Registros</span>`;
+
+        // Inducción
+        const miInd = [...inds].reverse().find(i => i.DNI == dni);
+        const dashInd = document.querySelector('#dash-ind .dash-status');
+        if (miInd && miInd.Recibio_Induccion === "Recibida") dashInd.innerHTML = `<span class="status-green">Recibida</span>`;
+        else dashInd.innerHTML = `<span class="status-red">Pendiente</span>`;
+
+        // RISST
+        const miRisst = [...rissts].reverse().find(r => r.DNI == dni);
+        const dashRisst = document.querySelector('#dash-risst .dash-status');
+        if (miRisst && miRisst.Se_Entrego_RISST === "Si") dashRisst.innerHTML = `<span class="status-green">Entregado</span>`;
+        else dashRisst.innerHTML = `<span class="status-red">No Entregado</span>`;
+
+        // Vigilancia Médica
+        const miVig = [...vigs].reverse().find(v => v.DNI == dni);
+        const dashVig = document.querySelector('#dash-vig .dash-status');
+        if (miVig) {
+            if (miVig.Requiere_Vigilancia === "Si") dashVig.innerHTML = `<span class="status-yellow">Requiere Vig.</span>`;
+            else dashVig.innerHTML = `<span class="status-green">No Requiere</span>`;
+        } else dashVig.innerHTML = `<span class="status-red">Sin Registro</span>`;
+
+        // IPERC Continuo
+        const misIperc = ipercs.filter(i => i.DNI == dni);
+        document.querySelector('#dash-iperc .dash-status').innerHTML = `<span class="status-green">${misIperc.length} Registros</span>`;
+
+        // PTAR
+        const misPtar = ptars.filter(p => p.DNI == dni);
+        document.querySelector('#dash-ptar .dash-status').innerHTML = `<span class="status-green">${misPtar.length} Permisos</span>`;
+
+        // ─────────────────────────────────────────────────────────────
+        // BOTONES INTELIGENTES (Drill-Down) PARA LOS 10 MÓDULOS
+        // ─────────────────────────────────────────────────────────────
+        const setupCardClick = (cardId, modTarget, inputId, btnId) => {
+            const card = document.getElementById(cardId);
+            card.style.cursor = "pointer";
+            card.title = "Clic para ir al módulo y ver detalles";
+            card.onmouseover = () => card.style.transform = "translateY(-4px)";
+            card.onmouseout = () => card.style.transform = "translateY(0)";
+            card.style.transition = "transform 0.2s ease";
+
+            card.onclick = () => {
+                document.querySelector(`.nav-btn[data-target="${modTarget}"]`).click();
+                document.getElementById(inputId).value = dni;
+                setTimeout(() => document.getElementById(btnId).click(), 150);
+            };
+        };
+
+        setupCardClick('dash-emo', 'mod-emo', 'emoDni', 'emoBuscarBtn');
+        setupCardClick('dash-epp', 'mod-epp', 'eppDni', 'eppBuscarBtn');
+        setupCardClick('dash-vacunas', 'mod-vacunas', 'vacDni', 'vacBuscarBtn');
+        setupCardClick('dash-actos', 'mod-actos', 'actoDni', 'actoBuscarBtn');
+        setupCardClick('dash-cap', 'mod-capacitaciones', 'capDni', 'capBuscarBtn');
+        setupCardClick('dash-ind', 'mod-induccion', 'indDni', 'indBuscarBtn');
+        setupCardClick('dash-risst', 'mod-risst', 'risstDni', 'risstBuscarBtn');
+        setupCardClick('dash-vig', 'mod-vigilancia', 'vigDni', 'vigBuscarBtn');
+        setupCardClick('dash-iperc', 'mod-iperc', 'ipercDni', 'ipercBuscarBtn');
+        setupCardClick('dash-ptar', 'mod-ptar', 'ptarDni', 'ptarBuscarBtn');
 
     } catch (error) {
         console.error("Error al cargar 360:", error);
@@ -130,11 +194,7 @@ async function guardarRegistro(formId, sheetName, values, actionType = "upsert",
         const res = await response.json();
         if (res.result === "success") {
             alert(`¡Éxito! Registro guardado en ${sheetName}.`);
-            
-            if(reloadBtnId) {
-                // Pequeña pausa para asegurar que Google Sheets terminó de procesar
-                setTimeout(() => document.getElementById(reloadBtnId).click(), 500);
-            }
+            if(reloadBtnId) setTimeout(() => document.getElementById(reloadBtnId).click(), 500);
         } else alert("Error: " + res.message);
     } catch (error) {
         console.error(error); alert("Falla de conexión.");
@@ -147,7 +207,7 @@ async function guardarRegistro(formId, sheetName, values, actionType = "upsert",
 async function cargarDatosModulo(sheetName, dni, callback) {
     if(!dni) return callback([]);
     try {
-        const noCache = new Date().getTime(); // 💡 Rompedor de Caché
+        const noCache = new Date().getTime();
         const res = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=${sheetName}&action=readAll&_=${noCache}`);
         const data = await res.json();
         const registros = data.filter(r => r.DNI == dni || r.DNI === parseInt(dni));
@@ -174,6 +234,72 @@ window.borrarRegistroHistorial = async function(sheetName, regEncoded, reloadBtn
     } catch(e) { console.error(e); alert("Falla de conexión."); }
 };
 
+// =========================================================================
+//  FUNCIONES DE EDICIÓN PARA TODOS LOS MÓDULOS
+// =========================================================================
+
+window.cargarEdicionEPP = function(regEncoded) {
+    const reg = JSON.parse(decodeURIComponent(regEncoded));
+    document.getElementById('eppDni').value = reg.DNI; 
+    document.getElementById('eppZapato').value = reg.Zapato_Seguridad || "Pendiente";
+    document.getElementById('eppFechaZapato').value = formatFecha(reg.Fecha_Zapato);
+    document.getElementById('eppRopa').value = reg.Ropa_Trabajo || "Pendiente";
+    document.getElementById('eppFechaRopa').value = formatFecha(reg.Fecha_Ropa);
+    document.getElementById('eppCasco').value = reg.Casco || "Pendiente";
+    document.getElementById('eppFechaCasco').value = formatFecha(reg.Fecha_Casco);
+    document.getElementById('eppForm').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.cargarEdicionInduccion = function(regEncoded) {
+    const reg = JSON.parse(decodeURIComponent(regEncoded));
+    document.getElementById('indDni').value = reg.DNI; 
+    document.getElementById('indEstado').value = reg.Recibio_Induccion || "Pendiente";
+    document.getElementById('indFecha').value = formatFecha(reg.Fecha_Induccion);
+    document.getElementById('indForm').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.cargarEdicionRISST = function(regEncoded) {
+    const reg = JSON.parse(decodeURIComponent(regEncoded));
+    document.getElementById('risstDni').value = reg.DNI; 
+    document.getElementById('risstEstado').value = reg.Se_Entrego_RISST || "No";
+    document.getElementById('risstFecha').value = formatFecha(reg.Fecha_Entrega);
+    document.getElementById('risstForm').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.cargarEdicionEMO = function(regEncoded) {
+    const reg = JSON.parse(decodeURIComponent(regEncoded));
+    document.getElementById('emoDni').value = reg.DNI; 
+    document.getElementById('emoFecha').value = formatFecha(reg.Fecha_Examen);
+    document.getElementById('emoAptitud').value = reg.Aptitud || "";
+    document.getElementById('emoDetalleRestriccion').value = reg.Detalle_Restriccion || "";
+    document.getElementById('emoAptitud').dispatchEvent(new Event('change'));
+    document.getElementById('emoForm').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.cargarEdicionVigilancia = function(regEncoded) {
+    const reg = JSON.parse(decodeURIComponent(regEncoded));
+    document.getElementById('vigDni').value = reg.DNI; 
+    document.getElementById('vigEnfermedad').value = reg.Enfermedad_Previa || "";
+    document.getElementById('vigRequiere').value = reg.Requiere_Vigilancia || "No";
+    document.getElementById('vigDetalle').value = reg.Detalle_Vigilancia || "";
+    document.getElementById('vigRequiere').dispatchEvent(new Event('change'));
+    document.getElementById('vigForm').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.cargarEdicionVacunas = function(regEncoded) {
+    const reg = JSON.parse(decodeURIComponent(regEncoded));
+    document.getElementById('vacDni').value = reg.DNI; 
+    document.getElementById('vacHepEstado').value = reg.Hepatitis_Estado || "Pendiente";
+    document.getElementById('vacHepFecha').value = formatFecha(reg.Hepatitis_Fecha);
+    document.getElementById('vacInfEstado').value = reg.Influenza_Estado || "Pendiente";
+    document.getElementById('vacInfFecha').value = formatFecha(reg.Influenza_Fecha);
+    document.getElementById('vacTetEstado').value = reg.Tetanos_Estado || "Pendiente";
+    document.getElementById('vacTetFecha').value = formatFecha(reg.Tetanos_Fecha);
+    document.getElementById('vacCovEstado').value = reg.COVID_Estado || "Pendiente";
+    document.getElementById('vacCovFecha').value = formatFecha(reg.COVID_Fecha);
+    document.getElementById('vacunasForm').scrollIntoView({ behavior: 'smooth' });
+};
+
 window.cargarEdicionActo = function(regEncoded) {
     const reg = JSON.parse(decodeURIComponent(regEncoded));
     document.getElementById('actoDni').value = reg.DNI; 
@@ -181,7 +307,6 @@ window.cargarEdicionActo = function(regEncoded) {
     document.getElementById('actoCometido').value = reg.Acto_Inseguro_Cometido || "";
     document.getElementById('actoDetalle').value = reg.Detalle || reg.Detalle_Motivo || reg.Motivo || ""; 
     document.getElementById('actoMedida').value = reg.Medida_Correctiva || "";
-
     const btnSubmit = document.querySelector('#actosForm button[type="submit"]');
     btnSubmit.innerHTML = '💾 Guardar Edición (Nuevo Reg.)';
     btnSubmit.classList.replace('btn-danger', 'btn-primary');
@@ -195,7 +320,6 @@ window.cargarEdicionCapacitacion = function(regEncoded) {
     document.getElementById('capFechaProg').value = formatFecha(reg.Fecha_Programada);
     document.getElementById('capAsistio').value = reg.Asistio || "";
     document.getElementById('capFechaAsistencia').value = formatFecha(reg.Fecha_Asistencia);
-
     const btnSubmit = document.querySelector('#capForm button[type="submit"]');
     btnSubmit.innerHTML = '💾 Guardar Edición (Nuevo Reg.)';
     document.getElementById('capForm').scrollIntoView({ behavior: 'smooth' });
@@ -206,7 +330,6 @@ window.cargarEdicionIPERC = function(regEncoded) {
     document.getElementById('ipercDni').value = reg.DNI; 
     document.getElementById('ipercFecha').value = formatFecha(reg.Fecha);
     document.getElementById('ipercElaboro').value = reg.Elaboro_IPERC || "";
-
     const btnSubmit = document.querySelector('#ipercForm button[type="submit"]');
     btnSubmit.innerHTML = '💾 Guardar Edición (Nuevo Reg.)';
     document.getElementById('ipercForm').scrollIntoView({ behavior: 'smooth' });
@@ -218,7 +341,6 @@ window.cargarEdicionPTAR = function(regEncoded) {
     document.getElementById('ptarFecha').value = formatFecha(reg.Fecha);
     document.getElementById('ptarRequiere').value = reg.Requiere_PTAR || "";
     document.getElementById('ptarElaboro').value = reg.Elaboro_PTAR || "";
-
     const btnSubmit = document.querySelector('#ptarForm button[type="submit"]');
     btnSubmit.innerHTML = '💾 Guardar Edición (Nuevo Reg.)';
     document.getElementById('ptarForm').scrollIntoView({ behavior: 'smooth' });
@@ -273,7 +395,6 @@ document.getElementById('eppBuscarBtn').addEventListener('click', () => {
     document.getElementById('eppDni').value = dni;
     cargarDatosModulo('EPPs', dni, (registros) => {
         if(registros.length > 0) {
-            // Siempre toma el último registro por si hay duplicados
             const e = registros[registros.length - 1]; 
             document.getElementById('eppZapato').value = e.Zapato_Seguridad || "Pendiente";
             document.getElementById('eppFechaZapato').value = formatFecha(e.Fecha_Zapato);
@@ -282,6 +403,12 @@ document.getElementById('eppBuscarBtn').addEventListener('click', () => {
             document.getElementById('eppCasco').value = e.Casco || "Pendiente";
             document.getElementById('eppFechaCasco').value = formatFecha(e.Fecha_Casco);
         } else alert("No hay registros previos. Puede ingresar uno nuevo.");
+        
+        renderizarTabla('hist-epp', registros, [
+            {header: "Zapato", key: "Zapato_Seguridad"},
+            {header: "Ropa", key: "Ropa_Trabajo"},
+            {header: "Casco", key: "Casco"}
+        ], { functionName: "cargarEdicionEPP" }, 'EPPs', 'eppBuscarBtn');
     });
 });
 document.getElementById('eppForm').addEventListener('submit', (e) => {
@@ -318,6 +445,10 @@ document.getElementById('indBuscarBtn').addEventListener('click', () => {
             document.getElementById('indEstado').value = e.Recibio_Induccion || "Pendiente";
             document.getElementById('indFecha').value = formatFecha(e.Fecha_Induccion);
         }
+        renderizarTabla('hist-ind', registros, [
+            {header: "Estado", key: "Recibio_Induccion"},
+            {header: "Fecha", key: "Fecha_Induccion", isDate: true}
+        ], { functionName: "cargarEdicionInduccion" }, 'Induccion', 'indBuscarBtn');
     });
 });
 document.getElementById('indForm').addEventListener('submit', (e) => {
@@ -337,6 +468,10 @@ document.getElementById('risstBuscarBtn').addEventListener('click', () => {
             document.getElementById('risstEstado').value = e.Se_Entrego_RISST || "No";
             document.getElementById('risstFecha').value = formatFecha(e.Fecha_Entrega);
         }
+        renderizarTabla('hist-risst', registros, [
+            {header: "Entregado", key: "Se_Entrego_RISST"},
+            {header: "Fecha", key: "Fecha_Entrega", isDate: true}
+        ], { functionName: "cargarEdicionRISST" }, 'RISST', 'risstBuscarBtn');
     });
 });
 document.getElementById('risstForm').addEventListener('submit', (e) => {
@@ -364,13 +499,16 @@ document.getElementById('emoBuscarBtn').addEventListener('click', async () => {
 
     cargarDatosModulo('EMO', dni, (registros) => {
         if(registros.length > 0) {
-            // Cogemos el último por si en el pasado se crearon duplicados por error
             const e = registros[registros.length - 1]; 
             document.getElementById('emoFecha').value = formatFecha(e.Fecha_Examen);
             document.getElementById('emoAptitud').value = e.Aptitud || "";
             document.getElementById('emoDetalleRestriccion').value = e.Detalle_Restriccion || "";
             document.getElementById('emoAptitud').dispatchEvent(new Event('change'));
         }
+        renderizarTabla('hist-emo', registros, [
+            {header: "Fecha Examen", key: "Fecha_Examen", isDate: true},
+            {header: "Aptitud", key: "Aptitud"}
+        ], { functionName: "cargarEdicionEMO" }, 'EMO', 'emoBuscarBtn');
     });
 });
 document.getElementById('emoForm').addEventListener('submit', (e) => {
@@ -449,6 +587,10 @@ document.getElementById('vigBuscarBtn').addEventListener('click', () => {
             document.getElementById('vigDetalle').value = v.Detalle_Vigilancia || "";
             document.getElementById('vigRequiere').dispatchEvent(new Event('change'));
         }
+        renderizarTabla('hist-vig', registros, [
+            {header: "Enfermedad", key: "Enfermedad_Previa"},
+            {header: "Requiere Vig.", key: "Requiere_Vigilancia"}
+        ], { functionName: "cargarEdicionVigilancia" }, 'Vigilancia_Medica', 'vigBuscarBtn');
     });
 });
 document.getElementById('vigForm').addEventListener('submit', (e) => {
@@ -474,6 +616,12 @@ document.getElementById('vacBuscarBtn').addEventListener('click', () => {
             document.getElementById('vacCovEstado').value = v.COVID_Estado || "Pendiente";
             document.getElementById('vacCovFecha').value = formatFecha(v.COVID_Fecha);
         }
+        renderizarTabla('hist-vacunas', registros, [
+            {header: "Hep. B", key: "Hepatitis_Estado"},
+            {header: "Influenza", key: "Influenza_Estado"},
+            {header: "Tétanos", key: "Tetanos_Estado"},
+            {header: "COVID", key: "COVID_Estado"}
+        ], { functionName: "cargarEdicionVacunas" }, 'Vacunas', 'vacBuscarBtn');
     });
 });
 document.getElementById('vacunasForm').addEventListener('submit', (e) => {
