@@ -1,3 +1,4 @@
+
 // Pega aquí la URL de tu Apps Script
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_SAUbOtvUZ-XprhqbZKtg7L354FP5C_IjKcodBhNdHvabY1EHDE8Y0EKZZeeHQAuaJw/exec";
 
