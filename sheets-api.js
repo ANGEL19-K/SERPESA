@@ -1,4 +1,3 @@
-
 // Pega aquí la URL de tu Apps Script
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_SAUbOtvUZ-XprhqbZKtg7L354FP5C_IjKcodBhNdHvabY1EHDE8Y0EKZZeeHQAuaJw/exec";
 
@@ -418,6 +417,24 @@ document.getElementById('eppForm').addEventListener('submit', (e) => {
     guardarRegistro('eppForm', 'EPPs', v, 'upsert', 'eppBuscarBtn');
 });
 
+// ==============================================================
+//  MÓDULO 2: CAPACITACIONES (MASIVO, INDIVIDUAL Y REPORTE)
+// ==============================================================
+
+// --- Lógica de Pestañas ---
+const activarTabCapacitacion = (tabActiva) => {
+    ['btnTabMasivo', 'btnTabIndividual', 'btnTabReporte'].forEach(btn => document.getElementById(btn).className = 'btn-secondary');
+    ['tab-masivo', 'tab-individual', 'tab-reporte'].forEach(tab => document.getElementById(tab).classList.add('hidden'));
+    
+    document.getElementById(tabActiva.btn).className = 'btn-primary';
+    document.getElementById(tabActiva.tab).classList.remove('hidden');
+};
+
+document.getElementById('btnTabMasivo').addEventListener('click', () => activarTabCapacitacion({btn:'btnTabMasivo', tab:'tab-masivo'}));
+document.getElementById('btnTabIndividual').addEventListener('click', () => activarTabCapacitacion({btn:'btnTabIndividual', tab:'tab-individual'}));
+document.getElementById('btnTabReporte').addEventListener('click', () => activarTabCapacitacion({btn:'btnTabReporte', tab:'tab-reporte'}));
+
+// --- Lógica Individual (Historial) ---
 document.getElementById('capBuscarBtn').addEventListener('click', () => {
     const dni = document.getElementById('capDni').value.trim();
     if(!dni) return alert("Ingrese un DNI");
@@ -428,13 +445,259 @@ document.getElementById('capBuscarBtn').addEventListener('click', () => {
         ], { functionName: "cargarEdicionCapacitacion" }, 'Capacitaciones', 'capBuscarBtn');
     });
 });
+
 document.getElementById('capForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const v = [ document.getElementById('capDni').value, document.getElementById('capTema').value, document.getElementById('capFechaProg').value, document.getElementById('capAsistio').value, document.getElementById('capFechaAsistencia').value || "No asistió" ];
     guardarRegistro('capForm', 'Capacitaciones', v, 'append', 'capBuscarBtn');
-    setTimeout(() => { document.querySelector('#capForm button[type="submit"]').innerHTML = '💾 Agregar Capacitación'; }, 1500);
+    setTimeout(() => { document.querySelector('#capForm button[type="submit"]').innerHTML = '💾 Agregar Capacitación Individual'; }, 1500);
 });
 
+// --- Lógica Masiva (Carga de Personal) ---
+document.getElementById('btnCargarPersonal').addEventListener('click', async () => {
+    const btn = document.getElementById('btnCargarPersonal');
+    btn.innerText = "⏳ Cargando personal activo...";
+    try {
+        const noCache = new Date().getTime();
+        const res = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll&_=${noCache}`);
+        const trabajadores = await res.json();
+        const activos = trabajadores.filter(t => t.Estado !== 'Inactivo');
+        
+        const tbody = document.querySelector('#tablaAsistenciaMasiva tbody');
+        tbody.innerHTML = '';
+        
+        activos.forEach(t => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${t.DNI}</td>
+                <td style="font-size: 13px;">${t.Nombre_Completo || t.Nombre}</td>
+                <td>
+                    <select class="masivo-asistencia" data-dni="${t.DNI}" style="padding: 4px; font-size: 13px;">
+                        <option value="No">❌ No</option>
+                        <option value="Si">✅ Sí</option>
+                    </select>
+                </td>
+                <td><input type="date" class="masivo-fecha" style="padding: 4px; font-size: 13px;"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('contenedorListaMasiva').classList.remove('hidden');
+        document.getElementById('buscadorMasivo').value = ''; 
+    } catch(e) { alert("Error al cargar personal."); } 
+    finally { btn.innerText = "🔄 Volver a cargar Lista de Personal"; }
+});
+
+document.getElementById('buscadorMasivo').addEventListener('input', function() {
+    const filtro = this.value.toLowerCase();
+    document.querySelectorAll('#tablaAsistenciaMasiva tbody tr').forEach(fila => {
+        const nombre = fila.children[1].textContent.toLowerCase();
+        fila.style.display = nombre.includes(filtro) ? '' : 'none';
+    });
+});
+
+document.getElementById('btnMarcarTodos').addEventListener('click', () => {
+    const fechaDefault = document.getElementById('capMasivoAsist').value;
+    document.querySelectorAll('#tablaAsistenciaMasiva tbody tr').forEach(tr => {
+        if (tr.style.display !== 'none') {
+            tr.querySelector('.masivo-asistencia').value = "Si";
+            if(fechaDefault) tr.querySelector('.masivo-fecha').value = fechaDefault;
+        }
+    });
+});
+
+document.getElementById('btnGuardarMasivo').addEventListener('click', async () => {
+    const tema = document.getElementById('capMasivoTema').value.trim();
+    const fechaProg = document.getElementById('capMasivoProg').value;
+    
+    if(!tema || !fechaProg) return alert("Ingrese el Tema y la Fecha Programada.");
+    
+    const registrosToSave = [];
+    document.querySelectorAll('#tablaAsistenciaMasiva tbody tr').forEach(tr => {
+        const dni = tr.querySelector('.masivo-asistencia').getAttribute('data-dni');
+        const asistio = tr.querySelector('.masivo-asistencia').value;
+        const fechaAsistencia = tr.querySelector('.masivo-fecha').value || "No asistió";
+        
+        if (asistio === "Si" || fechaAsistencia !== "No asistió") {
+            registrosToSave.push([dni, tema, fechaProg, asistio, fechaAsistencia]);
+        }
+    });
+    
+    if(registrosToSave.length === 0) return alert("No hay asistencias marcadas para guardar.");
+    
+    const btn = document.getElementById('btnGuardarMasivo');
+    btn.innerText = "⏳ Enviando datos..."; btn.disabled = true;
+    
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ sheet: "Capacitaciones", values: registrosToSave, actionType: "appendBulk" })
+        });
+        const res = await response.json();
+        if (res.result === "success") {
+            alert(`¡Éxito! Se guardaron ${registrosToSave.length} registros.`);
+            document.getElementById('contenedorListaMasiva').classList.add('hidden');
+            document.getElementById('capMasivoTema').value = '';
+        } else alert("Error: " + res.message);
+    } catch(e) { alert("Falla de conexión."); } 
+    finally { btn.innerText = "💾 Guardar Asistencia Masiva"; btn.disabled = false; }
+});
+
+// --- Lógica del Reporte por Tema ---
+document.getElementById('repCapBuscarBtn').addEventListener('click', async () => {
+    const temaBusqueda = document.getElementById('repCapTema').value.trim().toLowerCase();
+    if(!temaBusqueda) return alert("Ingrese un tema para buscar (Ej. Primeros Auxilios)");
+    
+    const btn = document.getElementById('repCapBuscarBtn');
+    btn.innerText = "⏳ Extrayendo...";
+    btn.disabled = true;
+    
+    try {
+        const noCache = new Date().getTime();
+        // 💡 Cruzamos la base de datos de Capacitaciones con la de Trabajadores para obtener los nombres
+        const [reqCap, reqTrab] = await Promise.all([
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Capacitaciones&action=readAll&_=${noCache}`),
+            fetch(`${GOOGLE_SCRIPT_URL}?sheet=Trabajadores&action=readAll&_=${noCache}`)
+        ]);
+        
+        const caps = await reqCap.json();
+        const trabajadores = await reqTrab.json();
+        
+        // Filtramos buscando coincidencias de texto (Ej. si pones "Auxilios" te mostrará "Primeros Auxilios")
+        const resultados = caps.filter(c => (c.Tema_Capacitacion || "").toLowerCase().includes(temaBusqueda));
+        
+        const contenedor = document.getElementById('res-rep-cap');
+        contenedor.classList.remove('hidden');
+        
+        if(resultados.length === 0) {
+            contenedor.innerHTML = `<h3 style="color:var(--text)">Resultados para: "${temaBusqueda}"</h3><div class="empty-msg">No se encontraron registros de asistencia para esta capacitación en la base de datos.</div>`;
+            return;
+        }
+        
+        let html = `<h3 style="color:var(--text); margin-bottom:10px;">Resultados para: "${temaBusqueda}" (${resultados.length} registros)</h3>
+                    <div class="table-responsive">
+                    <table class="history-table">
+                        <thead style="background: #1e293b;">
+                            <tr>
+                                <th>DNI</th>
+                                <th>Trabajador</th>
+                                <th>Fecha Programada</th>
+                                <th>¿Asistió?</th>
+                                <th>F. Asistencia Real</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                        
+        // Mostramos del más reciente al más antiguo
+        [...resultados].reverse().forEach(reg => {
+            const t = trabajadores.find(x => x.DNI == reg.DNI);
+            const nombre = t ? (t.Nombre_Completo || t.Nombre) : "⚠️ Trabajador Desconocido";
+            
+            // Colores para destacar a los que sí fueron de los que no
+            const colorAsistencia = reg.Asistio === 'Si' ? '#10b981' : '#ef4444';
+            const iconAsistencia = reg.Asistio === 'Si' ? '✅ Sí' : '❌ No';
+            
+            html += `<tr>
+                <td>${reg.DNI}</td>
+                <td style="font-weight:bold;">${nombre}</td>
+                <td>${formatFecha(reg.Fecha_Programada)}</td>
+                <td style="color: ${colorAsistencia}; font-weight:bold;">${iconAsistencia}</td>
+                <td>${formatFecha(reg.Fecha_Asistencia) || reg.Fecha_Asistencia}</td>
+            </tr>`;
+        });
+        
+        html += `</tbody></table></div>`;
+        contenedor.innerHTML = html;
+        
+    } catch(e) {
+        console.error(e);
+        alert("Error al consultar la base de datos. Verifique su conexión.");
+    } finally {
+        btn.innerText = "🔍 Extraer Reporte";
+        btn.disabled = false;
+    }
+});
+
+// --- Lógica del Buscador Rápido ---
+document.getElementById('buscadorMasivo').addEventListener('input', function() {
+    const filtro = this.value.toLowerCase();
+    const filas = document.querySelectorAll('#tablaAsistenciaMasiva tbody tr');
+    
+    filas.forEach(fila => {
+        const nombre = fila.children[1].textContent.toLowerCase();
+        if (nombre.includes(filtro)) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+});
+
+// --- Lógica del Botón "Marcar Visibles" ---
+document.getElementById('btnMarcarTodos').addEventListener('click', () => {
+    const fechaDefault = document.getElementById('capMasivoAsist').value;
+    const filas = document.querySelectorAll('#tablaAsistenciaMasiva tbody tr');
+    
+    filas.forEach(tr => {
+        // Solo aplica a los que NO están ocultos
+        if (tr.style.display !== 'none') {
+            tr.querySelector('.masivo-asistencia').value = "Si";
+            if(fechaDefault) {
+                tr.querySelector('.masivo-fecha').value = fechaDefault;
+            }
+        }
+    });
+});
+
+// --- Lógica para Enviar a Base de Datos (Bulk) ---
+document.getElementById('btnGuardarMasivo').addEventListener('click', async () => {
+    const tema = document.getElementById('capMasivoTema').value.trim();
+    const fechaProg = document.getElementById('capMasivoProg').value;
+    
+    if(!tema || !fechaProg) return alert("Por favor, ingrese el Tema de la Capacitación y la Fecha Programada arriba.");
+    
+    const registrosToSave = [];
+    const filas = document.querySelectorAll('#tablaAsistenciaMasiva tbody tr');
+    
+    filas.forEach(tr => {
+        const dni = tr.querySelector('.masivo-asistencia').getAttribute('data-dni');
+        const asistio = tr.querySelector('.masivo-asistencia').value;
+        const fechaAsistencia = tr.querySelector('.masivo-fecha').value || "No asistió";
+        
+        // Solo guardamos los que tienen "Sí" o los que tengan una fecha ingresada
+        // Esto evita llenar el Excel de "No" innecesarios si no fueron a la capacitación
+        if (asistio === "Si" || fechaAsistencia !== "No asistió") {
+            registrosToSave.push([dni, tema, fechaProg, asistio, fechaAsistencia]);
+        }
+    });
+    
+    if(registrosToSave.length === 0) return alert("No hay asistencias marcadas para guardar.");
+    
+    const btn = document.getElementById('btnGuardarMasivo');
+    btn.innerText = "⏳ Enviando datos masivos a Sheets...";
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST", redirect: "follow",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ sheet: "Capacitaciones", values: registrosToSave, actionType: "appendBulk" })
+        });
+        const res = await response.json();
+        if (res.result === "success") {
+            alert(`¡Éxito! Se guardaron ${registrosToSave.length} registros de asistencia en la base de datos.`);
+            document.getElementById('contenedorListaMasiva').classList.add('hidden');
+            document.getElementById('capMasivoTema').value = '';
+        } else {
+            alert("Error: " + res.message);
+        }
+    } catch(e) {
+        console.error(e); alert("Falla de conexión.");
+    } finally {
+        btn.innerText = "💾 Guardar Asistencia Masiva";
+        btn.disabled = false;
+    }
+});
 document.getElementById('indBuscarBtn').addEventListener('click', () => {
     const dni = document.getElementById('indDni').value.trim();
     if(!dni) return alert("Ingrese un DNI");
