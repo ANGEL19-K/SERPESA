@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1726">
+  <title>SST Manager 3.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toastRoot" class="toast-root"></div>
+
+  <section id="loginView" class="login-shell">
+    <div class="login-panel">
+      <div class="login-mark">SST</div>
+      <p class="eyebrow">Portal privado</p>
+      <h1>SST Manager 3.0</h1>
+      <p class="muted">Seguridad y Salud en el Trabajo</p>
+      <form id="loginForm" class="stack-lg">
+        <label class="field"><span>Correo</span><input id="loginEmail" type="email" autocomplete="username" placeholder="usuario@empresa.com" required></label>
+        <label class="field"><span>Contraseña</span><input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••" required></label>
+        <button class="btn btn-primary btn-block" type="submit">Ingresar al sistema</button>
+      </form>
+      <p id="loginMsg" class="form-msg"></p>
+    </div>
+  </section>
+
+  <div id="appView" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="brand"><div class="brand-badge">SST</div><div><strong>SST Manager</strong><span>Versión 3.0</span></div></div>
+      <nav class="nav">
+        <p class="nav-title">Principal</p>
+        <button class="nav-item active" data-target="dashboard"><span>▦</span> Resumen</button>
+        <button class="nav-item" data-target="buscador"><span>⌕</span> SST 360°</button>
+        <button class="nav-item" data-target="alertas"><span>!</span> Alertas</button>
+        <button class="nav-item" data-target="trabajadores"><span>◉</span> Trabajadores</button>
+        <p class="nav-title">Módulos SST</p>
+        <button class="nav-item" data-target="emo"><span>+</span> EMO</button>
+        <button class="nav-item" data-target="epp"><span>◇</span> EPP</button>
+        <button class="nav-item" data-target="capacitaciones"><span>▤</span> Capacitaciones</button>
+        <button class="nav-item" data-target="induccion"><span>✓</span> Inducción</button>
+        <button class="nav-item" data-target="risst"><span>R</span> RISST</button>
+        <button class="nav-item" data-target="actos"><span>⚑</span> Actos inseguros</button>
+        <button class="nav-item" data-target="iperc"><span>I</span> IPERC</button>
+        <button class="nav-item" data-target="ptar"><span>P</span> PTAR</button>
+        <button class="nav-item" data-target="vigilancia"><span>V</span> Vigilancia médica</button>
+        <button class="nav-item" data-target="vacunas"><span>○</span> Vacunas</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="session-user"><span id="sessionEmail">—</span><small>Sesión protegida</small></div><button id="logoutBtn" class="btn btn-ghost btn-block">Cerrar sesión</button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="mobileMenuBtn" class="icon-btn mobile-only" aria-label="Abrir menú">☰</button>
+        <div><p class="eyebrow">Seguridad y Salud en el Trabajo</p><h2 id="pageTitle">Resumen</h2></div>
+        <div class="topbar-actions"><button id="refreshBtn" class="btn btn-secondary">Actualizar</button><button id="backupBtn" class="btn btn-primary">Exportar backup</button></div>
+      </header>
+
+      <div class="content">
+        <section id="dashboard" class="page active">
+          <div class="hero-card">
+            <div><span class="status-dot"></span><p class="eyebrow">Sistema conectado</p><h1>Control SST centralizado</h1><p class="muted">Datos en Supabase, documentos privados en R2 y consultas optimizadas por trabajador.</p></div>
+            <div class="hero-meta"><strong id="lastRefresh">—</strong><span>Última actualización</span></div>
+          </div>
+          <div id="kpiGrid" class="kpi-grid"></div>
+          <div class="grid-2">
+            <article class="panel"><div class="panel-head"><div><p class="eyebrow">EMO</p><h3>Estado médico actual</h3></div></div><div id="emoOverview" class="overview-list"></div></article>
+            <article class="panel"><div class="panel-head"><div><p class="eyebrow">Actividad</p><h3>Capacitaciones registradas</h3></div></div><div id="trainingOverview" class="overview-list"></div></article>
+          </div>
+        </section>
+
+        <section id="buscador" class="page">
+          <div class="section-head"><div><p class="eyebrow">Consulta integral</p><h1>Buscador SST 360°</h1><p class="muted">Consulta un DNI y obtén el estado completo sin descargar hojas enteras.</p></div></div>
+          <article class="panel search-panel"><div class="search-row"><input id="searchDni" inputmode="numeric" maxlength="8" placeholder="Ingrese DNI de 8 dígitos"><button id="searchBtn" class="btn btn-primary">Consultar trabajador</button></div><div id="searchResult" class="empty-state">Ingresa un DNI para consultar el expediente.</div></article>
+        </section>
+
+        <section id="alertas" class="page">
+          <div class="section-head"><div><p class="eyebrow">Monitoreo</p><h1>Panel de alertas</h1><p class="muted">EMO vencidos o por vencer, observados, EPP incompleto, vacunas y actos inseguros.</p></div></div>
+          <div id="alertsRoot" class="alert-grid"></div>
+        </section>
+
+        <section id="trabajadores" class="page">
+          <div class="section-head"><div><p class="eyebrow">Base maestra</p><h1>Trabajadores</h1></div></div>
+          <div class="grid-2 align-start">
+            <article class="panel"><div class="panel-head"><h3>Registrar / actualizar</h3></div>
+              <form id="workerForm" class="form-grid">
+                <label class="field"><span>DNI</span><input id="workerDni" maxlength="8" inputmode="numeric" required></label>
+                <label class="field"><span>Nombre completo</span><input id="workerName" required></label>
+                <label class="field"><span>Puesto</span><input id="workerPosition" placeholder="."></label>
+                <label class="field"><span>Área</span><input id="workerArea" placeholder="."></label>
+                <label class="field"><span>Fecha de ingreso</span><input id="workerStart" type="date"></label>
+                <label class="field"><span>Estado</span><select id="workerStatus"><option>Activo</option><option>Inactivo</option></select></label>
+                <button class="btn btn-primary span-2" type="submit">Guardar trabajador</button>
+              </form>
+            </article>
+            <article class="panel"><div class="panel-head"><h3>Personal registrado</h3><span id="workerCount" class="pill">0</span></div><input id="workerFilter" class="filter-input" placeholder="Filtrar por DNI, nombre o puesto"><div id="workersTable" class="table-wrap compact-table"></div></article>
+          </div>
+        </section>
+
+        <section id="emo" class="page">
+          <div class="section-head"><div><p class="eyebrow">Módulo médico</p><h1>Examen Médico Ocupacional</h1><p class="muted">Aptitud, restricciones, vencimiento automático y documento PDF/imagen.</p></div></div>
+          <div class="grid-2 align-start">
+            <article class="panel">
+              <form id="emoForm" class="form-grid">
+                <label class="field span-2"><span>Trabajador (DNI)</span><div class="inline-control"><input id="emoDni" maxlength="8" inputmode="numeric" required><button id="emoLookupBtn" type="button" class="btn btn-secondary">Consultar</button></div></label>
+                <label class="field span-2"><span>Nombre registrado</span><input id="emoWorkerName" readonly placeholder="Se cargará al consultar"></label>
+                <label class="field"><span>Fecha del examen</span><input id="emoDate" type="date" required></label>
+                <label class="field"><span>Resultado / aptitud</span><select id="emoFitness" required><option value="">Seleccione...</option><option>Apto</option><option>Apto con restricciones</option><option>Observado</option><option>No apto</option></select></label>
+                <label class="field span-2"><span>Restricciones / observaciones</span><textarea id="emoRestriction" rows="3" placeholder="Ninguna"></textarea></label>
+                <label class="field span-2 file-drop"><span>Documento EMO</span><input id="emoFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"><small>PDF, JPG, PNG o WEBP. Máximo recomendado: 15 MB.</small></label>
+                <button class="btn btn-primary span-2" type="submit">Guardar / actualizar EMO</button>
+              </form>
+            </article>
+            <article class="panel"><div class="panel-head"><h3>Historial EMO</h3><span id="emoCurrentBadge" class="pill">Sin consulta</span></div><div id="emoHistory" class="empty-state">Consulta un trabajador para ver sus registros.</div></article>
+          </div>
+        </section>
+
+        <section id="epp" class="page module-page"><div class="section-head"><div><p class="eyebrow">Equipos de protección</p><h1>EPP</h1></div></div><article class="panel narrow"><form id="eppForm" class="form-grid">
+          <label class="field span-2"><span>DNI</span><input id="eppDni" maxlength="8" required></label>
+          <label class="field"><span>Zapatos</span><select id="eppShoes"><option>Pendiente</option><option>Entregado</option></select></label><label class="field"><span>Fecha zapatos</span><input id="eppShoesDate" type="date"></label>
+          <label class="field"><span>Ropa</span><select id="eppClothes"><option>Pendiente</option><option>Entregado</option></select></label><label class="field"><span>Fecha ropa</span><input id="eppClothesDate" type="date"></label>
+          <label class="field"><span>Casco</span><select id="eppHelmet"><option>Pendiente</option><option>Entregado</option></select></label><label class="field"><span>Fecha casco</span><input id="eppHelmetDate" type="date"></label>
+          <button class="btn btn-primary span-2">Guardar EPP</button></form></article></section>
+
+        <section id="capacitaciones" class="page">
+          <div class="section-head"><div><p class="eyebrow">Formación</p><h1>Capacitaciones</h1></div></div>
+          <div class="grid-2 align-start"><article class="panel"><form id="capForm" class="form-grid">
+            <label class="field span-2"><span>DNI</span><input id="capDni" maxlength="8" required></label>
+            <label class="field span-2"><span>Tema</span><input id="capTopic" required></label>
+            <label class="field"><span>Fecha programada</span><input id="capScheduled" type="date" required></label>
+            <label class="field"><span>Asistió</span><select id="capAttended"><option>Si</option><option>No</option></select></label>
+            <label class="field span-2"><span>Fecha asistencia</span><input id="capAttendedDate" type="date"></label>
+            <button class="btn btn-primary span-2">Guardar capacitación</button></form></article>
+            <article class="panel"><div class="panel-head"><h3>Historial por DNI</h3></div><div class="search-row mini"><input id="capSearchDni" maxlength="8" placeholder="DNI"><button id="capSearchBtn" class="btn btn-secondary">Ver historial</button></div><div id="capHistory" class="empty-state">Sin consulta.</div></article>
+          </div>
+        </section>
+
+        <section id="induccion" class="page module-page"><div class="section-head"><div><p class="eyebrow">Ingreso SST</p><h1>Inducción</h1></div></div><article class="panel narrow"><form id="indForm" class="form-grid"><label class="field span-2"><span>DNI</span><input id="indDni" maxlength="8" required></label><label class="field"><span>Estado</span><select id="indStatus"><option>Recibida</option><option>Pendiente</option></select></label><label class="field"><span>Fecha</span><input id="indDate" type="date"></label><button class="btn btn-primary span-2">Guardar inducción</button></form></article></section>
+
+        <section id="risst" class="page module-page"><div class="section-head"><div><p class="eyebrow">Reglamento interno</p><h1>RISST</h1></div></div><article class="panel narrow"><form id="risstForm" class="form-grid"><label class="field span-2"><span>DNI</span><input id="risstDni" maxlength="8" required></label><label class="field"><span>¿Entregado?</span><select id="risstStatus"><option>Si</option><option>No</option></select></label><label class="field"><span>Fecha</span><input id="risstDate" type="date"></label><button class="btn btn-primary span-2">Guardar RISST</button></form></article></section>
+
+        <section id="actos" class="page module-page"><div class="section-head"><div><p class="eyebrow">Prevención</p><h1>Actos inseguros</h1></div></div><article class="panel narrow"><form id="actForm" class="form-grid"><label class="field span-2"><span>DNI</span><input id="actDni" maxlength="8" required></label><label class="field"><span>Fecha</span><input id="actDate" type="date" required></label><label class="field"><span>Acto observado</span><input id="actName" required></label><label class="field span-2"><span>Detalle / motivo</span><textarea id="actDetail" rows="2"></textarea></label><label class="field span-2"><span>Medida correctiva</span><textarea id="actMeasure" rows="2"></textarea></label><button class="btn btn-danger span-2">Registrar incidencia</button></form></article></section>
+
+        <section id="iperc" class="page module-page"><div class="section-head"><div><p class="eyebrow">Control operativo</p><h1>IPERC continuo</h1></div></div><article class="panel narrow"><form id="ipercForm" class="form-grid"><label class="field span-2"><span>DNI</span><input id="ipercDni" maxlength="8" required></label><label class="field"><span>Fecha</span><input id="ipercDate" type="date" required></label><label class="field"><span>¿Elaboró IPERC?</span><select id="ipercDone"><option>Si</option><option>No</option></select></label><button class="btn btn-primary span-2">Guardar IPERC</button></form></article></section>
+
+        <section id="ptar" class="page module-page"><div class="section-head"><div><p class="eyebrow">Alto riesgo</p><h1>PTAR</h1></div></div><article class="panel narrow"><form id="ptarForm" class="form-grid"><label class="field span-2"><span>DNI</span><input id="ptarDni" maxlength="8" required></label><label class="field"><span>Fecha</span><input id="ptarDate" type="date" required></label><label class="field"><span>¿Requiere PTAR?</span><select id="ptarNeed"><option>Si</option><option>No</option></select></label><label class="field"><span>¿Elaboró PTAR?</span><select id="ptarDone"><option>Si</option><option>No</option><option>No aplica</option></select></label><button class="btn btn-primary span-2">Guardar PTAR</button></form></article></section>
+
+        <section id="vigilancia" class="page module-page"><div class="section-head"><div><p class="eyebrow">Seguimiento</p><h1>Vigilancia médica</h1></div></div><article class="panel narrow"><form id="vigForm" class="form-grid"><label class="field span-2"><span>DNI</span><input id="vigDni" maxlength="8" required></label><label class="field span-2"><span>Enfermedad previa</span><input id="vigDisease" placeholder="Ninguna"></label><label class="field"><span>¿Requiere vigilancia?</span><select id="vigNeed"><option>No</option><option>Si</option></select></label><label class="field"><span>Detalle</span><input id="vigDetail" placeholder="N/A"></label><button class="btn btn-primary span-2">Guardar vigilancia</button></form></article></section>
+
+        <section id="vacunas" class="page module-page"><div class="section-head"><div><p class="eyebrow">Salud ocupacional</p><h1>Vacunación</h1></div></div><article class="panel narrow"><form id="vacForm" class="form-grid">
+          <label class="field span-2"><span>DNI</span><input id="vacDni" maxlength="8" required></label>
+          <label class="field"><span>Hepatitis B</span><select id="vacHep"><option>Pendiente</option><option>Aplicada</option><option>No aplica</option></select></label><label class="field"><span>Fecha</span><input id="vacHepDate" type="date"></label>
+          <label class="field"><span>Influenza</span><select id="vacFlu"><option>Pendiente</option><option>Aplicada</option><option>No aplica</option></select></label><label class="field"><span>Fecha</span><input id="vacFluDate" type="date"></label>
+          <label class="field"><span>Tétanos</span><select id="vacTet"><option>Pendiente</option><option>Aplicada</option><option>No aplica</option></select></label><label class="field"><span>Fecha</span><input id="vacTetDate" type="date"></label>
+          <label class="field"><span>COVID</span><select id="vacCovid"><option>Pendiente</option><option>Aplicada</option><option>No aplica</option></select></label><label class="field"><span>Fecha</span><input id="vacCovidDate" type="date"></label>
+          <button class="btn btn-primary span-2">Guardar vacunas</button></form></article></section>
+      </div>
+    </main>
+  </div>
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
